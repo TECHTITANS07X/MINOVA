@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.so
+
+# Virtual environments
+venvs/
+.venv/
+
+# Environment files
+.env
+*.env.local
+
+# Node
+node_modules/
+portal/dist/
+
+# Flutter
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data & logs
+data/
+logs/
+tmp/
+downloads/
+
+# Tools (downloaded binaries)
+tools/
+
+# OS
+Thumbs.db
+.DS_Store

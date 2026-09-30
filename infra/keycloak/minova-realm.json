@@ -1,0 +1,302 @@
+{
+  "realm": "minova",
+  "enabled": true,
+  "displayName": "MINOVA Mining Platform",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 3600,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "System administrator" },
+      { "name": "auditor", "description": "Audit and compliance reviewer" },
+      { "name": "corporate_viewer", "description": "Corporate-level read access (CIL/CMPDI)" },
+      { "name": "cmd", "description": "Chairman & Managing Director" },
+      { "name": "director", "description": "Director / Functional Director / Director of Mines" },
+      { "name": "cgm", "description": "Chief General Manager" },
+      { "name": "gm", "description": "General Manager" },
+      { "name": "dgm", "description": "Deputy General Manager" },
+      { "name": "cm", "description": "Chief Manager" },
+      { "name": "acm", "description": "Assistant Chief Manager" },
+      { "name": "dcm", "description": "Deputy Chief Manager" },
+      { "name": "ee", "description": "Executive Engineer" },
+      { "name": "ae", "description": "Assistant Engineer" },
+      { "name": "executive_supervisor", "description": "Executive Supervisor (field oversight)" },
+      { "name": "foreman", "description": "Foreman (field data entry)" },
+      { "name": "worker", "description": "Worker (view only)" },
+      { "name": "unit_head", "description": "Unit Head (mine-level approval)" },
+      { "name": "assistant_manager", "description": "Assistant Manager (verification)" },
+      { "name": "manager", "description": "Manager (verification)" },
+      { "name": "supervisor", "description": "Supervisor (review)" },
+      { "name": "engineer", "description": "Engineer (review)" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "minova-portal",
+      "name": "MINOVA Management Portal",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "protocol": "openid-connect",
+      "rootUrl": "http://localhost:5173",
+      "baseUrl": "/",
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      },
+      "defaultClientScopes": ["openid", "profile", "email", "roles"],
+      "optionalClientScopes": ["offline_access"]
+    },
+    {
+      "clientId": "minova-mobile",
+      "name": "MINOVA Field App",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "protocol": "openid-connect",
+      "rootUrl": "",
+      "redirectUris": [
+        "com.minova.mobile://callback",
+        "http://localhost:*",
+        "http://127.0.0.1:*"
+      ],
+      "webOrigins": ["*"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": ["openid", "profile", "email", "roles"],
+      "optionalClientScopes": ["offline_access"]
+    },
+    {
+      "clientId": "minova-api",
+      "name": "MINOVA Backend API",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "defaultClientScopes": ["openid", "profile", "email", "roles"]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "roles",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "multivalued": "true",
+            "claim.name": "realm_roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "mine-attribute-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "mine",
+            "claim.name": "mine",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "department-attribute-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "department",
+            "claim.name": "department",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@minova.demo",
+      "firstName": "System",
+      "lastName": "Administrator",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
+      "realmRoles": ["admin"],
+      "attributes": { "mine": ["ALL"], "department": ["ALL"] }
+    },
+    {
+      "username": "foreman1",
+      "email": "foreman1@minova.demo",
+      "firstName": "Rajesh",
+      "lastName": "Kumar",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["foreman"],
+      "attributes": { "mine": ["DEMO-MINE-NORTH"], "department": ["Production"] }
+    },
+    {
+      "username": "foreman2",
+      "email": "foreman2@minova.demo",
+      "firstName": "Suresh",
+      "lastName": "Patel",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["foreman"],
+      "attributes": { "mine": ["DEMO-MINE-SOUTH"], "department": ["Production"] }
+    },
+    {
+      "username": "supervisor1",
+      "email": "supervisor1@minova.demo",
+      "firstName": "Anita",
+      "lastName": "Sharma",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["supervisor", "executive_supervisor"],
+      "attributes": { "mine": ["DEMO-MINE-NORTH"], "department": ["Production"] }
+    },
+    {
+      "username": "engineer1",
+      "email": "engineer1@minova.demo",
+      "firstName": "Vikram",
+      "lastName": "Singh",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["engineer", "ae"],
+      "attributes": { "mine": ["DEMO-MINE-NORTH"], "department": ["Mining"] }
+    },
+    {
+      "username": "manager1",
+      "email": "manager1@minova.demo",
+      "firstName": "Priya",
+      "lastName": "Verma",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["manager", "cm"],
+      "attributes": { "mine": ["DEMO-MINE-NORTH", "DEMO-MINE-SOUTH"], "department": ["Production"] }
+    },
+    {
+      "username": "asstmgr1",
+      "email": "asstmgr1@minova.demo",
+      "firstName": "Deepak",
+      "lastName": "Mishra",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["assistant_manager", "dcm"],
+      "attributes": { "mine": ["DEMO-MINE-NORTH"], "department": ["Production"] }
+    },
+    {
+      "username": "unithead1",
+      "email": "unithead1@minova.demo",
+      "firstName": "Arun",
+      "lastName": "Gupta",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["unit_head", "gm"],
+      "attributes": { "mine": ["DEMO-MINE-NORTH", "DEMO-MINE-SOUTH", "DEMO-MINE-EAST", "DEMO-MINE-WEST"], "department": ["ALL"] }
+    },
+    {
+      "username": "director1",
+      "email": "director1@minova.demo",
+      "firstName": "Sanjay",
+      "lastName": "Rao",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["director"],
+      "attributes": { "mine": ["ALL"], "department": ["ALL"] }
+    },
+    {
+      "username": "cmd1",
+      "email": "cmd1@minova.demo",
+      "firstName": "Meera",
+      "lastName": "Nair",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["cmd"],
+      "attributes": { "mine": ["ALL"], "department": ["ALL"] }
+    },
+    {
+      "username": "auditor1",
+      "email": "auditor1@minova.demo",
+      "firstName": "Kiran",
+      "lastName": "Joshi",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["auditor"],
+      "attributes": { "mine": ["ALL"], "department": ["ALL"] }
+    },
+    {
+      "username": "corporate1",
+      "email": "corporate1@minova.demo",
+      "firstName": "Neha",
+      "lastName": "Reddy",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "pass123", "temporary": false }],
+      "realmRoles": ["corporate_viewer"],
+      "attributes": { "mine": ["ALL"], "department": ["ALL"] }
+    }
+  ],
+  "scopeMappings": [
+    {
+      "client": "minova-portal",
+      "roles": ["admin", "auditor", "corporate_viewer", "cmd", "director", "cgm", "gm", "dgm", "cm", "acm", "dcm", "ee", "ae", "executive_supervisor", "foreman", "worker", "unit_head", "assistant_manager", "manager", "supervisor", "engineer"]
+    },
+    {
+      "client": "minova-mobile",
+      "roles": ["foreman", "executive_supervisor", "supervisor", "engineer", "ae", "ee", "worker"]
+    }
+  ],
+  "browserSecurityHeaders": {
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "xContentTypeOptions": "nosniff",
+    "xFrameOptions": "SAMEORIGIN",
+    "xXSSProtection": "1; mode=block"
+  }
+}
