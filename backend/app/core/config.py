@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     minio_bucket_exports: str = "exports"
     minio_bucket_reports: str = "reports"
 
+    # Local filesystem storage used as fallback when object storage is unavailable
+    storage_root: str = "data/object-storage"
+
     ollama_url: str = "http://localhost:11434"
     llm_model: str = "qwen3:8b"
     llm_temperature: float = 0.1
@@ -42,6 +45,9 @@ class Settings(BaseSettings):
 
     embedding_model: str = "BAAI/bge-m3"
     embedding_dim: int = 1024
+
+    # HuggingFace model cache directory (embeddings)
+    hf_home: str = "data/models/huggingface"
 
     temporal_host: str = "localhost:7233"
     temporal_namespace: str = "default"

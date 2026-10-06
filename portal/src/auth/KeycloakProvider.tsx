@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import Keycloak from 'keycloak-js';
 import type { User } from '../types';
 
-const keycloak = new Keycloak({
+export const keycloak = new Keycloak({
   url: import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8081',
   realm: 'minova',
   clientId: 'minova-portal',
@@ -28,6 +28,19 @@ const AuthContext = createContext<AuthContextType>({
   hasRole: () => false,
 });
 
+// Module-scope init promise: React StrictMode double-invokes effects in dev,
+// which would call keycloak.init twice — one run consumes the PKCE ?code= from
+// the redirect while the other resolves unauthenticated, bouncing the user
+// back to /login even with a valid session. Init once, consume everywhere.
+// onLoad 'login-required' (not check-sso): without a silent-check-sso iframe on
+// the Keycloak origin, check-sso falls back to a full-page redirect that drops
+// the deep-linked path. login-required redirects with the current URL as target.
+const keycloakInit = keycloak.init({
+  onLoad: 'login-required',
+  pkceMethod: 'S256',
+  checkLoginIframe: false,
+});
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
@@ -35,12 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    keycloak.init({ onLoad: 'check-sso', pkceMethod: 'S256', checkLoginIframe: false })
+    keycloakInit
       .then((auth) => {
         setAuthenticated(auth);
         if (auth && keycloak.tokenParsed) {
           const parsed = keycloak.tokenParsed;
-          const roles = parsed.realm_access?.roles || [];
+          const roles = parsed.realm_access?.roles || parsed.realm_roles || [];
           setUser({
             sub: parsed.sub || '',
             email: parsed.email || '',

@@ -2,36 +2,31 @@ import { useState } from 'react';
 import {
   Box, Card, CardContent, Typography, Tabs, Tab, Table, TableBody, TableCell, TableHead,
   TableRow, Button, TextField, Grid, Chip, IconButton, Dialog, DialogTitle, DialogContent,
-  DialogActions, FormControl, InputLabel, Select, MenuItem, Alert,
+  DialogActions, Alert, CircularProgress,
 } from '@mui/material';
-import { Add, Edit, Delete, Settings } from '@mui/icons-material';
-import { useMines } from '../api/hooks';
+import { Add, Edit, Settings } from '@mui/icons-material';
 import { api } from '../api/client';
+import { useMines, useUsers, useApprovalChains, useSystemHealth } from '../api/hooks';
 
 function TabPanel({ children, value, index }: { children: React.ReactNode; value: number; index: number }) {
   return value === index ? <Box mt={2}>{children}</Box> : null;
 }
 
-const DEMO_USERS = [
-  { username: 'admin_user', name: 'Admin User', role: 'admin', mine: 'All', active: true },
-  { username: 'mine_manager_1', name: 'Rajesh Kumar', role: 'mine_manager', mine: 'Mine Alpha', active: true },
-  { username: 'shift_supervisor_1', name: 'Anil Singh', role: 'shift_supervisor', mine: 'Mine Alpha', active: true },
-  { username: 'data_entry_op_1', name: 'Priya Sharma', role: 'data_entry_operator', mine: 'Mine Alpha', active: true },
-  { username: 'geologist_1', name: 'Suresh Reddy', role: 'geologist', mine: 'Mine Beta', active: true },
-  { username: 'safety_officer_1', name: 'Meena Patel', role: 'safety_officer', mine: 'Mine Alpha', active: false },
-];
-
-const APPROVAL_CHAINS = [
-  { id: 'ac-1', name: 'Standard Shift Entry', levels: ['Shift Supervisor', 'Mine Manager', 'Regional Director'], mine: 'Mine Alpha' },
-  { id: 'ac-2', name: 'High-Value Entry (>10,000t)', levels: ['Mine Manager', 'Regional Director', 'HQ Admin'], mine: 'All' },
-];
-
 export default function Admin() {
   const [tab, setTab] = useState(0);
-  const { data: mines = [] } = useMines();
   const [mineDialog, setMineDialog] = useState(false);
   const [mineName, setMineName] = useState('');
   const [mineCode, setMineCode] = useState('');
+
+  const { data: mines = [], isLoading: minesLoading } = useMines();
+  const { data: users = [], isLoading: usersLoading } = useUsers();
+  const { data: approvalChains = [], isLoading: chainsLoading } = useApprovalChains();
+  const { data: health, isLoading: healthLoading } = useSystemHealth();
+
+  const getMineNameById = (mineId: string) => {
+    const mine = mines.find((m: any) => m.id === mineId);
+    return mine?.name || mineId;
+  };
 
   const handleCreateMine = async () => {
     if (!mineName.trim() || !mineCode.trim()) return;
@@ -62,36 +57,36 @@ export default function Admin() {
         <Box display="flex" justifyContent="flex-end" mb={2}>
           <Button variant="contained" startIcon={<Add />} onClick={() => setMineDialog(true)}>Add Mine</Button>
         </Box>
-        <Card>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Code</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Benches</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {[
-                { code: 'ALPHA', name: 'DEMO Mine Alpha', benches: 4, active: true },
-                { code: 'BETA', name: 'DEMO Mine Beta', benches: 3, active: true },
-                { code: 'GAMMA', name: 'DEMO Mine Gamma', benches: 2, active: false },
-              ].map((m) => (
-                <TableRow key={m.code} hover>
-                  <TableCell><Chip size="small" label={m.code} /></TableCell>
-                  <TableCell>{m.name}</TableCell>
-                  <TableCell>{m.benches}</TableCell>
-                  <TableCell><Chip size="small" label={m.active ? 'Active' : 'Inactive'} color={m.active ? 'success' : 'default'} /></TableCell>
-                  <TableCell align="right">
-                    <IconButton size="small"><Edit /></IconButton>
-                  </TableCell>
+        {minesLoading ? (
+          <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+        ) : (
+          <Card>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Code</TableCell>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Benches</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+              </TableHead>
+              <TableBody>
+                {mines.map((m: any) => (
+                  <TableRow key={m.id} hover>
+                    <TableCell><Chip size="small" label={m.code} /></TableCell>
+                    <TableCell>{m.name}</TableCell>
+                    <TableCell>{'—'}</TableCell>
+                    <TableCell><Chip size="small" label={m.is_active ? 'Active' : 'Inactive'} color={m.is_active ? 'success' : 'default'} /></TableCell>
+                    <TableCell align="right">
+                      <IconButton size="small"><Edit /></IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
 
         <Dialog open={mineDialog} onClose={() => setMineDialog(false)} maxWidth="sm" fullWidth>
           <DialogTitle>Add Mine</DialogTitle>
@@ -113,79 +108,90 @@ export default function Admin() {
       </TabPanel>
 
       <TabPanel value={tab} index={1}>
-        <Card>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Username</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Mine</TableCell>
-                <TableCell>Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {DEMO_USERS.map((u) => (
-                <TableRow key={u.username} hover>
-                  <TableCell><Typography variant="body2" fontFamily="monospace">{u.username}</Typography></TableCell>
-                  <TableCell>{u.name}</TableCell>
-                  <TableCell><Chip size="small" label={u.role} variant="outlined" /></TableCell>
-                  <TableCell>{u.mine}</TableCell>
-                  <TableCell><Chip size="small" label={u.active ? 'Active' : 'Disabled'} color={u.active ? 'success' : 'default'} /></TableCell>
+        {usersLoading ? (
+          <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+        ) : (
+          <Card>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Username</TableCell>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Role</TableCell>
+                  <TableCell>Mine</TableCell>
+                  <TableCell>Status</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+              </TableHead>
+              <TableBody>
+                {users.map((u: any) => (
+                  <TableRow key={u.id} hover>
+                    <TableCell><Typography variant="body2" fontFamily="monospace">{u.username}</Typography></TableCell>
+                    <TableCell>{u.full_name}</TableCell>
+                    <TableCell>
+                      <Box display="flex" gap={0.5} flexWrap="wrap">
+                        {u.roles?.map((role: string) => (
+                          <Chip key={role} size="small" label={role} variant="outlined" />
+                        ))}
+                      </Box>
+                    </TableCell>
+                    <TableCell>{getMineNameById(u.mine_id)}</TableCell>
+                    <TableCell><Chip size="small" label={u.is_active ? 'Active' : 'Disabled'} color={u.is_active ? 'success' : 'default'} /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
         <Alert severity="info" sx={{ mt: 2 }}>Users and roles are managed through Keycloak. Changes here sync via OIDC claims.</Alert>
       </TabPanel>
 
       <TabPanel value={tab} index={2}>
-        {APPROVAL_CHAINS.map((chain) => (
-          <Card key={chain.id} sx={{ mb: 2 }}>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                <Typography variant="subtitle1" fontWeight={600}>{chain.name}</Typography>
-                <Chip size="small" label={chain.mine} variant="outlined" />
-              </Box>
-              <Box display="flex" gap={1} alignItems="center">
-                {chain.levels.map((level, i) => (
-                  <Box key={level} display="flex" alignItems="center" gap={1}>
-                    <Chip label={`${i + 1}. ${level}`} color={i === 0 ? 'primary' : 'default'} />
-                    {i < chain.levels.length - 1 && <Typography color="text.secondary">→</Typography>}
+        {chainsLoading ? (
+          <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+        ) : (
+          approvalChains.map((chain: any) => (
+            <Card key={chain.id} sx={{ mb: 2 }}>
+              <CardContent>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                  <Typography variant="subtitle1" fontWeight={600}>{chain.name}</Typography>
+                  <Box display="flex" gap={1}>
+                    <Chip size="small" label={chain.report_type} variant="outlined" />
+                    <Chip size="small" label={getMineNameById(chain.mine_id)} variant="outlined" />
                   </Box>
-                ))}
-              </Box>
-            </CardContent>
-          </Card>
-        ))}
+                </Box>
+                <Chip size="small" label={chain.is_active ? 'Active' : 'Inactive'} color={chain.is_active ? 'success' : 'default'} />
+              </CardContent>
+            </Card>
+          ))
+        )}
       </TabPanel>
 
       <TabPanel value={tab} index={3}>
-        <Grid container spacing={2}>
-          {[
-            { service: 'PostgreSQL', status: 'running', port: 5432, detail: 'v16.9, PostGIS + pgvector' },
-            { service: 'Keycloak', status: 'running', port: 8080, detail: 'v26, MINOVA realm' },
-            { service: 'MinIO', status: 'stopped', port: 9000, detail: 'S3-compatible storage' },
-            { service: 'Temporal', status: 'running', port: 7233, detail: 'Workflow engine' },
-            { service: 'Ollama', status: 'running', port: 11434, detail: 'Qwen3:8b loaded' },
-            { service: 'FastAPI', status: 'running', port: 8000, detail: 'Backend API' },
-          ].map((s) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={s.service}>
-              <Card>
-                <CardContent>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="subtitle1" fontWeight={600}>{s.service}</Typography>
-                    <Chip size="small" label={s.status}
-                      color={s.status === 'running' ? 'success' : 'error'} />
-                  </Box>
-                  <Typography variant="body2" color="text.secondary">Port {s.port}</Typography>
-                  <Typography variant="caption" color="text.secondary">{s.detail}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        {healthLoading ? (
+          <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+        ) : (
+          <Grid container spacing={2}>
+            {health?.checks && Object.entries(health.checks).map(([name, status]: [string, any]) => (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={name}>
+                <Card>
+                  <CardContent>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Typography variant="subtitle1" fontWeight={600}>{name}</Typography>
+                      <Chip size="small" label={status ? 'running' : 'stopped'} color={status ? 'success' : 'error'} />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+            {health?.status && (
+              <Grid size={{ xs: 12 }}>
+                <Alert severity={health.status === 'ok' ? 'success' : 'warning'}>
+                  Overall system status: {health.status}
+                </Alert>
+              </Grid>
+            )}
+          </Grid>
+        )}
       </TabPanel>
     </Box>
   );

@@ -86,3 +86,20 @@ async def review_anomaly(
     flag.linked_cause_id = body.linked_cause_id
 
     return StatusResponse(status=body.status.value, message=f"Anomaly {body.status.value}")
+
+
+@router.get("/{anomaly_id}/narrative")
+async def anomaly_narrative(
+    anomaly_id: uuid.UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    """Smart narrative: a probable explanation with evidence citations, built by
+    cross-referencing cause records, weather, similar events and target pressure."""
+    from app.services import anomaly_narrative
+
+    result = await db.execute(select(AnomalyFlag).where(AnomalyFlag.id == anomaly_id))
+    flag = result.scalar_one_or_none()
+    if not flag:
+        raise HTTPException(404, "Anomaly flag not found")
+    return await anomaly_narrative.build_narrative(db, flag)

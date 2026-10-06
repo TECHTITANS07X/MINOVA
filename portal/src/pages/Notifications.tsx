@@ -1,30 +1,13 @@
 import { useState } from 'react';
 import {
   Box, Typography, Card, List, ListItemButton, ListItemIcon, ListItemText, Chip,
-  IconButton, Tooltip, Divider, Tabs, Tab, Button,
+  IconButton, Tooltip, Divider, Tabs, Tab, Button, CircularProgress,
 } from '@mui/material';
 import {
   Approval, Warning, Description, Calculate, Gavel, NotificationsActive,
   DoneAll, MarkEmailRead,
 } from '@mui/icons-material';
-
-interface Notification {
-  id: string;
-  type: 'approval' | 'anomaly' | 'conflict' | 'report' | 'calculation' | 'system';
-  title: string;
-  body: string;
-  time: string;
-  read: boolean;
-}
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  { id: 'n1', type: 'approval', title: 'Approval Required', body: 'Shift entry SE-101 from Bench A1 is pending your approval.', time: '10 min ago', read: false },
-  { id: 'n2', type: 'anomaly', title: 'Anomaly Detected', body: 'OB removal at Bench B3 is 45% below expected value.', time: '25 min ago', read: false },
-  { id: 'n3', type: 'conflict', title: 'Conflict Flagged', body: 'Conflicting values for production tonnage on 2026-09-30.', time: '1 hr ago', read: false },
-  { id: 'n4', type: 'report', title: 'Weekly Report Ready', body: 'Weekly report for Sep 23-29 has been generated and is ready for review.', time: '2 hrs ago', read: true },
-  { id: 'n5', type: 'calculation', title: 'Calc Run Complete', body: 'Daily rollup for 2026-09-30 completed successfully.', time: '3 hrs ago', read: true },
-  { id: 'n6', type: 'system', title: 'Service Alert', body: 'MinIO storage service is currently unavailable.', time: '5 hrs ago', read: true },
-];
+import { useNotifications } from '../api/hooks';
 
 const TYPE_ICONS: Record<string, React.ReactElement> = {
   approval: <Approval color="success" />,
@@ -35,20 +18,51 @@ const TYPE_ICONS: Record<string, React.ReactElement> = {
   system: <NotificationsActive color="secondary" />,
 };
 
+const SEVERITY_COLORS: Record<string, 'error' | 'warning' | 'info'> = {
+  high: 'error',
+  medium: 'warning',
+  low: 'info',
+};
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr${hrs > 1 ? 's' : ''} ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+}
+
 export default function Notifications() {
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const { data: notifications = [], isLoading } = useNotifications();
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState(0);
 
-  const unread = notifications.filter(n => !n.read);
-  const filtered = tab === 0 ? notifications : tab === 1 ? unread : notifications.filter(n => n.read);
+  const withReadState = notifications.map((n: any) => ({
+    ...n,
+    read: n.read || readIds.has(n.id),
+  }));
+
+  const unread = withReadState.filter((n: any) => !n.read);
+  const filtered = tab === 0 ? withReadState : tab === 1 ? unread : withReadState.filter((n: any) => n.read);
 
   const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setReadIds(new Set(notifications.map((n: any) => n.id)));
   };
 
   const markRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setReadIds(prev => new Set(prev).add(id));
   };
+
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" py={6}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -65,14 +79,14 @@ export default function Notifications() {
       </Box>
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
-        <Tab label={`All (${notifications.length})`} />
+        <Tab label={`All (${withReadState.length})`} />
         <Tab label={`Unread (${unread.length})`} />
         <Tab label="Read" />
       </Tabs>
 
       <Card>
         <List disablePadding>
-          {filtered.map((n, i) => (
+          {filtered.map((n: any, i: number) => (
             <Box key={n.id}>
               <ListItemButton
                 sx={{ bgcolor: n.read ? 'transparent' : 'action.hover', py: 1.5 }}
@@ -84,12 +98,17 @@ export default function Notifications() {
                     <Box display="flex" alignItems="center" gap={1}>
                       <Typography variant="subtitle2" fontWeight={n.read ? 400 : 700}>{n.title}</Typography>
                       {!n.read && <Chip size="small" label="NEW" color="primary" sx={{ height: 18, fontSize: 10 }} />}
+                      {n.severity && (
+                        <Chip size="small" label={n.severity} color={SEVERITY_COLORS[n.severity] || 'info'} sx={{ height: 18, fontSize: 10 }} />
+                      )}
                     </Box>
                   }
                   secondary={
                     <>
                       <Typography variant="body2" color="text.secondary">{n.body}</Typography>
-                      <Typography variant="caption" color="text.disabled">{n.time}</Typography>
+                      <Typography variant="caption" color="text.disabled">
+                        {new Date(n.time).toLocaleString()} ({relativeTime(n.time)})
+                      </Typography>
                     </>
                   }
                 />

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { keycloak } from '../auth/KeycloakProvider';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
@@ -20,7 +21,9 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       sessionStorage.removeItem('minova_token');
-      window.location.href = '/login';
+      if (!keycloak.authenticated && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

@@ -28,14 +28,33 @@ from app.domain.enums import (
     ApprovalRuleType,
     AuditAction,
     CauseType,
+    ComplianceAuthority,
+    ComplianceFrequency,
     ConflictResolution,
+    DeviationSeverity,
     DocumentCategory,
     DocumentType,
     EntryStatus,
+    EvidencePackStatus,
+    ExplosiveFlag,
+    FilingStatus,
+    IncidentCategory,
+    IncidentSeverity,
     IngestionStatus,
+    KnowledgeCategory,
+    LossRecoveryStatus,
+    LossSourceType,
+    MeetingActionStatus,
+    MeetingType,
     MetricName,
     OrgUnitType,
+    PhotoVerificationStatus,
+    PQCategory,
+    PQHouse,
+    PQTriggerType,
     QueryRouteType,
+    QualityPredictionStatus,
+    QualityRisk,
     RecoveryPlanStatus,
     ReportPeriod,
     ReportStatus,
@@ -653,3 +672,370 @@ class TopicTerm(Base):
     language: Mapped[str] = mapped_column(String(10), default="en")
 
     topic: Mapped[TopicTerm | None] = relationship("Topic", back_populates="terms")
+
+
+# ── Parliamentary Question Engine ────────────────────────────────────────────
+
+
+class QuestionPattern(Base):
+    __tablename__ = "question_pattern"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    code: Mapped[str] = mapped_column(String(50), unique=True)
+    title: Mapped[str] = mapped_column(String(500))
+    category: Mapped[PQCategory] = mapped_column(SAEnum(PQCategory, name="pq_category"))
+    trigger_type: Mapped[PQTriggerType] = mapped_column(SAEnum(PQTriggerType, name="pq_trigger_type"))
+    historical_frequency_10y: Mapped[int] = mapped_column(Integer, default=0)
+    typical_months: Mapped[list] = mapped_column(JSON, default=list, comment="Months 1-12 in which this pattern historically peaks")
+    trigger_conditions: Mapped[dict] = mapped_column(JSON, default=dict, comment="e.g. {metric: production_tonnes, drop_pct: 15} or {authority: dgms}")
+    sample_questions: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class ParliamentaryQuestion(Base):
+    __tablename__ = "parliamentary_question"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    house: Mapped[PQHouse] = mapped_column(SAEnum(PQHouse, name="pq_house"))
+    question_number: Mapped[str] = mapped_column(String(50))
+    asked_on: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    session_name: Mapped[str] = mapped_column(String(100), default="")
+    member_name: Mapped[str] = mapped_column(String(255))
+    constituency: Mapped[str] = mapped_column(String(255), default="")
+    ministry: Mapped[str] = mapped_column(String(255), default="Coal")
+    subject: Mapped[str] = mapped_column(String(500))
+    question_text: Mapped[str] = mapped_column(Text, default="")
+    category: Mapped[PQCategory] = mapped_column(SAEnum(PQCategory, name="pq_category"))
+    pattern_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("question_pattern.id"))
+    days_to_answer: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+# ── Evidence Packs (pre-generated PQ answers) ─────────────────────────────────
+
+
+class EvidencePack(Base):
+    __tablename__ = "evidence_pack"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    pattern_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("question_pattern.id"))
+    title: Mapped[str] = mapped_column(String(500))
+    likelihood_score: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=Decimal("0"))
+    status: Mapped[EvidencePackStatus] = mapped_column(
+        SAEnum(EvidencePackStatus, name="evidence_pack_status"), default=EvidencePackStatus.DRAFT
+    )
+    period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    mine_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("mine.id"))
+    summary: Mapped[str] = mapped_column(Text, default="")
+    sections: Mapped[dict] = mapped_column(JSON, default=dict, comment="Named sections; figures carry lineage refs for Replay the Number")
+    data_as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+
+    pattern: Mapped[QuestionPattern] = relationship("QuestionPattern")
+
+
+# ── Quality-Dispatch Correlation ─────────────────────────────────────────────
+
+
+class QualitySample(Base):
+    __tablename__ = "quality_sample"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mine.id"))
+    bench_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bench.id"))
+    sample_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    gcv_kcal: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    grade: Mapped[str] = mapped_column(String(20))
+    source: Mapped[str] = mapped_column(String(50), default="uttam_lab")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    mine: Mapped[Mine] = relationship("Mine")
+
+
+class QualityPrediction(Base):
+    __tablename__ = "quality_prediction"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mine.id"))
+    bench_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bench.id"))
+    prediction_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    baseline_gcv: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    predicted_gcv: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    declared_gcv: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    deviation_pct: Mapped[Decimal] = mapped_column(Numeric(8, 4), default=Decimal("0"))
+    risk: Mapped[QualityRisk] = mapped_column(SAEnum(QualityRisk, name="quality_risk"), default=QualityRisk.LOW)
+    status: Mapped[QualityPredictionStatus] = mapped_column(
+        SAEnum(QualityPredictionStatus, name="quality_prediction_status"), default=QualityPredictionStatus.PENDING
+    )
+    basis: Mapped[dict] = mapped_column(JSON, default=dict, comment="Samples/months used for the baseline; evidence for Replay")
+    lab_gcv: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    lab_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    flagged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    mine: Mapped[Mine] = relationship("Mine")
+
+
+# ── Production Loss Ledger / Recovery Debt ────────────────────────────────────
+
+
+class LossLedgerEntry(Base):
+    __tablename__ = "loss_ledger_entry"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mine.id"))
+    loss_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    cause_type: Mapped[CauseType] = mapped_column(SAEnum(CauseType, name="loss_cause_type"))
+    description: Mapped[str] = mapped_column(Text, default="")
+    tonnes_lost: Mapped[Decimal] = mapped_column(Numeric(18, 4))
+    hours_lost: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"))
+    source_type: Mapped[LossSourceType] = mapped_column(SAEnum(LossSourceType, name="loss_source_type"))
+    source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    recovery_status: Mapped[LossRecoveryStatus] = mapped_column(
+        SAEnum(LossRecoveryStatus, name="loss_recovery_status"), default=LossRecoveryStatus.OPEN
+    )
+    recovered_tonnes: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    mine: Mapped[Mine] = relationship("Mine")
+
+
+# ── Shift Handover Intelligence ──────────────────────────────────────────────
+
+
+class ShiftHandover(Base):
+    __tablename__ = "shift_handover"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mine.id"))
+    shift_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    outgoing_shift: Mapped[ShiftNumber] = mapped_column(SAEnum(ShiftNumber, name="handover_outgoing_shift"))
+    brief: Mapped[dict] = mapped_column(JSON, default=dict, comment="production, pending, equipment, safety, weather, notes sections")
+    critical_items: Mapped[list] = mapped_column(JSON, default=list)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    mine: Mapped[Mine] = relationship("Mine")
+
+
+# ── Statutory Compliance Sentinel ────────────────────────────────────────────
+
+
+class ComplianceObligation(Base):
+    __tablename__ = "compliance_obligation"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("mine.id"), comment="NULL = applies to all mines")
+    authority: Mapped[ComplianceAuthority] = mapped_column(SAEnum(ComplianceAuthority, name="compliance_authority"))
+    title: Mapped[str] = mapped_column(String(500))
+    description: Mapped[str] = mapped_column(Text, default="")
+    frequency: Mapped[ComplianceFrequency] = mapped_column(SAEnum(ComplianceFrequency, name="compliance_frequency"))
+    due_day: Mapped[int] = mapped_column(Integer, default=10, comment="Day of month the filing is due")
+    required_metrics: Mapped[list] = mapped_column(JSON, default=list, comment="MetricNames that must be present for the period")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class ComplianceFiling(Base):
+    __tablename__ = "compliance_filing"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    obligation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("compliance_obligation.id"))
+    mine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mine.id"))
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    due_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[FilingStatus] = mapped_column(SAEnum(FilingStatus, name="filing_status"), default=FilingStatus.NOT_STARTED)
+    completion_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("0"))
+    missing_metrics: Mapped[list] = mapped_column(JSON, default=list)
+    report_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("report.id"))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    submitted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    obligation: Mapped[ComplianceObligation] = relationship("ComplianceObligation")
+
+
+# ── Explosive-to-Output Correlation ──────────────────────────────────────────
+
+
+class ExplosiveLog(Base):
+    __tablename__ = "explosive_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mine.id"))
+    bench_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bench.id"))
+    log_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    explosives_kg: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    ob_m3: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    coal_tonnes: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    kg_per_m3: Mapped[Decimal] = mapped_column(Numeric(8, 4), default=Decimal("0"))
+    baseline_kg_per_m3: Mapped[Decimal] = mapped_column(Numeric(8, 4), default=Decimal("0"))
+    deviation_pct: Mapped[Decimal] = mapped_column(Numeric(8, 4), default=Decimal("0"))
+    flag: Mapped[ExplosiveFlag] = mapped_column(SAEnum(ExplosiveFlag, name="explosive_flag"), default=ExplosiveFlag.NORMAL)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    mine: Mapped[Mine] = relationship("Mine")
+
+
+# ── Geological Deviation Learning Loop ───────────────────────────────────────
+
+
+class GeologicalPrediction(Base):
+    __tablename__ = "geological_prediction"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mine.id"))
+    bench_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bench.id"))
+    seam_name: Mapped[str] = mapped_column(String(100))
+    predicted_thickness_m: Mapped[Decimal] = mapped_column(Numeric(8, 2))
+    predicted_gcv: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    tolerance_pct: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=Decimal("10.000"))
+    source: Mapped[str] = mapped_column(String(100), default="CMPDI")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    mine: Mapped[Mine] = relationship("Mine")
+    observations: Mapped[list[GeologicalObservation]] = relationship("GeologicalObservation", back_populates="prediction")
+
+
+class GeologicalObservation(Base):
+    __tablename__ = "geological_observation"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    prediction_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("geological_prediction.id"))
+    observed_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    actual_thickness_m: Mapped[Decimal] = mapped_column(Numeric(8, 2))
+    actual_gcv: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    thickness_dev_pct: Mapped[Decimal] = mapped_column(Numeric(8, 4), default=Decimal("0"))
+    gcv_dev_pct: Mapped[Decimal] = mapped_column(Numeric(8, 4), default=Decimal("0"))
+    severity: Mapped[DeviationSeverity] = mapped_column(
+        SAEnum(DeviationSeverity, name="deviation_severity"), default=DeviationSeverity.WITHIN_TOLERANCE
+    )
+    notes: Mapped[str] = mapped_column(Text, default="")
+    recorded_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    prediction: Mapped[GeologicalPrediction] = relationship("GeologicalPrediction", back_populates="observations")
+
+
+# ── Meeting Action Tracker ──────────────────────────────────────────────────
+
+class MeetingAction(Base):
+    __tablename__ = "meeting_action"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mine.id"))
+    meeting_type: Mapped[MeetingType] = mapped_column(SAEnum(MeetingType, name="meeting_type"))
+    meeting_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    title: Mapped[str] = mapped_column(String(500))
+    description: Mapped[str] = mapped_column(Text, default="")
+    assigned_to: Mapped[str] = mapped_column(String(255))
+    assigned_role: Mapped[str] = mapped_column(String(100), default="")
+    due_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[MeetingActionStatus] = mapped_column(SAEnum(MeetingActionStatus, name="meeting_action_status"), default=MeetingActionStatus.OPEN)
+    completion_notes: Mapped[str] = mapped_column(Text, default="")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    mine: Mapped[Mine] = relationship("Mine")
+
+
+# ── Institutional Knowledge Preservation ────────────────────────────────────
+
+class KnowledgeEntry(Base):
+    __tablename__ = "knowledge_entry"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("mine.id"))
+    category: Mapped[KnowledgeCategory] = mapped_column(SAEnum(KnowledgeCategory, name="knowledge_category"))
+    title: Mapped[str] = mapped_column(String(500))
+    content: Mapped[str] = mapped_column(Text)
+    author_name: Mapped[str] = mapped_column(String(255))
+    author_designation: Mapped[str] = mapped_column(String(255), default="")
+    years_experience: Mapped[int] = mapped_column(Integer, default=0)
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    mine: Mapped[Mine | None] = relationship("Mine")
+
+
+# ── Safety Incident Pattern Detector ────────────────────────────────────────
+
+class SafetyIncident(Base):
+    __tablename__ = "safety_incident"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mine.id"))
+    bench_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bench.id"))
+    incident_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    category: Mapped[IncidentCategory] = mapped_column(SAEnum(IncidentCategory, name="incident_category"))
+    severity: Mapped[IncidentSeverity] = mapped_column(SAEnum(IncidentSeverity, name="incident_severity"))
+    description: Mapped[str] = mapped_column(Text)
+    location_description: Mapped[str] = mapped_column(String(500), default="")
+    workers_involved: Mapped[int] = mapped_column(Integer, default=0)
+    injuries: Mapped[int] = mapped_column(Integer, default=0)
+    root_cause: Mapped[str] = mapped_column(Text, default="")
+    corrective_actions: Mapped[str] = mapped_column(Text, default="")
+    reported_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    mine: Mapped[Mine] = relationship("Mine")
+
+    __table_args__ = (
+        Index("ix_safety_incident_mine_date", "mine_id", "incident_date"),
+    )
+
+
+class SafetyPattern(Base):
+    __tablename__ = "safety_pattern"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("mine.id"))
+    pattern_name: Mapped[str] = mapped_column(String(500))
+    category: Mapped[IncidentCategory] = mapped_column(SAEnum(IncidentCategory, name="safety_pattern_category", create_constraint=False))
+    description: Mapped[str] = mapped_column(Text)
+    incident_count: Mapped[int] = mapped_column(Integer, default=0)
+    confidence: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("0"))
+    contributing_factors: Mapped[list] = mapped_column(JSON, default=list)
+    recommendations: Mapped[list] = mapped_column(JSON, default=list)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    mine: Mapped[Mine | None] = relationship("Mine")
+
+
+# ── Photo-Evidence Geo-Verification ─────────────────────────────────────────
+
+class PhotoEvidence(Base):
+    __tablename__ = "photo_evidence"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_new_id)
+    mine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mine.id"))
+    bench_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("bench.id"))
+    filename: Mapped[str] = mapped_column(String(512))
+    object_key: Mapped[str] = mapped_column(String(512))
+    photo_latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    photo_longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    photo_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expected_latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    expected_longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    distance_m: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    verification_status: Mapped[PhotoVerificationStatus] = mapped_column(
+        SAEnum(PhotoVerificationStatus, name="photo_verification_status"), default=PhotoVerificationStatus.PENDING
+    )
+    verification_notes: Mapped[str] = mapped_column(Text, default="")
+    context: Mapped[str] = mapped_column(String(255), default="")
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("app_user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    mine: Mapped[Mine] = relationship("Mine")

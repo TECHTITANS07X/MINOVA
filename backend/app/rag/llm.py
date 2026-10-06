@@ -51,14 +51,15 @@ Provide a grounded answer using ONLY the information from the context above. Cit
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(
-            f"{settings.OLLAMA_URL}/api/chat",
+            f"{settings.ollama_url}/api/chat",
             json={
-                "model": settings.LLM_MODEL,
+                "model": settings.llm_model,
                 "messages": messages,
                 "stream": False,
+                "think": False,
                 "options": {
-                    "temperature": settings.LLM_TEMPERATURE,
-                    "num_predict": settings.LLM_MAX_TOKENS,
+                    "temperature": settings.llm_temperature,
+                    "num_predict": settings.llm_max_tokens,
                 },
             },
         )
@@ -67,7 +68,7 @@ Provide a grounded answer using ONLY the information from the context above. Cit
 
     return {
         "content": data["message"]["content"],
-        "model": data.get("model", settings.LLM_MODEL),
+        "model": data.get("model", settings.llm_model),
         "eval_count": data.get("eval_count", 0),
     }
 
@@ -87,11 +88,12 @@ Reference the values exactly as provided."""
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
-            f"{settings.OLLAMA_URL}/api/generate",
+            f"{settings.ollama_url}/api/generate",
             json={
-                "model": settings.LLM_MODEL,
+                "model": settings.llm_model,
                 "prompt": prompt,
                 "stream": False,
+                "think": False,
                 "options": {"temperature": 0.1, "num_predict": 256},
             },
         )

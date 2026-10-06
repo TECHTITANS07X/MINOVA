@@ -20,7 +20,7 @@ from app.api.schemas import (
 )
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import CurrentUser
+from app.core.security import CurrentUser, resolve_app_user
 from app.domain.enums import QueryRouteType
 from app.domain.models import ChatMessage, ChatSession
 
@@ -48,6 +48,9 @@ def _classify_query(content: str) -> QueryRouteType:
         return QueryRouteType.CONTEXTUAL
     if any(kw in lower for kw in ["plan", "forecast", "recovery", "schedule", "suggest"]):
         return QueryRouteType.PLANNING
+    if any(kw in lower for kw in ["anomal", "outlier", "unusual", "flag"]):
+        # Anomaly questions need both the anomaly table and narrative reasoning.
+        return QueryRouteType.HYBRID
     return QueryRouteType.OUT_OF_SCOPE
 
 
@@ -57,8 +60,9 @@ async def create_session(
     user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ):
+    app_user = await resolve_app_user(db, user)
     session = ChatSession(
-        user_id=uuid.UUID(user.sub) if user.sub else uuid.uuid4(),
+        user_id=app_user.id,
         title=body.title or "New conversation",
     )
     db.add(session)
@@ -128,6 +132,7 @@ async def send_message(
                     "model": settings.llm_model,
                     "prompt": body.content,
                     "stream": False,
+                    "think": False,
                     "options": {"temperature": settings.llm_temperature},
                 },
             )
@@ -179,6 +184,7 @@ async def send_message_stream(
                         "model": settings.llm_model,
                         "prompt": body.content,
                         "stream": True,
+                        "think": False,
                         "options": {"temperature": settings.llm_temperature},
                     },
                 ) as resp:
@@ -196,6 +202,164 @@ async def send_message_stream(
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/message", response_model=ChatMessageOut)
+async def send_message_sessionless(
+    body: ChatMessageIn,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    """Convenience endpoint: auto-creates a session if needed, sends a message,
+    and returns the assistant response. Used by the portal's simple chat UI."""
+    app_user = await resolve_app_user(db, user)
+    session = ChatSession(
+        user_id=app_user.id,
+        title=body.content[:60],
+    )
+    db.add(session)
+    await db.flush()
+
+    user_msg = ChatMessage(session_id=session.id, role="user", content=body.content)
+    db.add(user_msg)
+    await db.flush()
+
+    route = _classify_query(body.content)
+
+    rag_context = ""
+    citations_list: list[dict] = []
+    if route in (QueryRouteType.CONTEXTUAL, QueryRouteType.HYBRID):
+        from sqlalchemy import text as sql_text
+        kw_sql = sql_text("""
+            SELECT dc.id, dc.document_id, dc.page_number, dc.text, d.filename
+            FROM doc_chunk dc
+            JOIN document d ON d.id = dc.document_id
+            WHERE dc.tsv @@ websearch_to_tsquery('english', :query)
+            ORDER BY ts_rank(dc.tsv, websearch_to_tsquery('english', :query)) DESC
+            LIMIT 5
+        """)
+        try:
+            kw_rows = (await db.execute(kw_sql, {"query": body.content})).fetchall()
+            for i, row in enumerate(kw_rows):
+                rag_context += f"\n[Source {i+1}: {row[4]}, page {row[2]}]\n{row[3][:400]}\n"
+                citations_list.append({
+                    "type": "document",
+                    "id": str(row[1]),
+                    "label": f"{row[4]} p.{row[2]}",
+                    "page": row[2],
+                })
+        except Exception:
+            pass
+
+    if route == QueryRouteType.NUMERIC:
+        from app.domain.models import ShiftEntry, EntryValue
+        from app.domain.enums import EntryStatus
+        from sqlalchemy import func
+        try:
+            prod_q = (
+                select(
+                    func.date(ShiftEntry.shift_date).label("d"),
+                    func.sum(EntryValue.value).label("total"),
+                )
+                .join(ShiftEntry, ShiftEntry.id == EntryValue.entry_id)
+                .where(
+                    ShiftEntry.status.in_([EntryStatus.APPROVED, EntryStatus.SUBMITTED]),
+                    EntryValue.metric == "production_tonnes",
+                )
+                .group_by(func.date(ShiftEntry.shift_date))
+                .order_by(func.date(ShiftEntry.shift_date).desc())
+                .limit(7)
+            )
+            rows = (await db.execute(prod_q)).fetchall()
+            if rows:
+                rag_context += "\n[Production data from database]\n"
+                for row in rows:
+                    rag_context += f"  {row[0]}: {float(row[1]):,.0f} tonnes\n"
+                citations_list.append({"type": "database", "id": "entry_values", "label": "Shift entry data"})
+        except Exception:
+            pass
+
+    if route in (QueryRouteType.NUMERIC, QueryRouteType.HYBRID) or "anomal" in body.content.lower():
+        from app.domain.models import AnomalyFlag, Mine
+        from app.domain.enums import AnomalyStatus
+        from sqlalchemy import func
+        try:
+            anomaly_q = (
+                select(
+                    AnomalyFlag.flag_date,
+                    AnomalyFlag.metric,
+                    AnomalyFlag.actual_value,
+                    AnomalyFlag.expected_value,
+                    AnomalyFlag.anomaly_score,
+                    AnomalyFlag.explanation,
+                    Mine.name,
+                )
+                .join(Mine, Mine.id == AnomalyFlag.mine_id)
+                .where(AnomalyFlag.status.in_([AnomalyStatus.FLAGGED, AnomalyStatus.ACKNOWLEDGED]))
+                .order_by(AnomalyFlag.flag_date.desc())
+                .limit(10)
+            )
+            a_rows = (await db.execute(anomaly_q)).fetchall()
+            if a_rows:
+                rag_context += "\n[Active anomalies from database (status flagged or acknowledged)]\n"
+                for r in a_rows:
+                    deviation = float(r[2]) - float(r[3])
+                    rag_context += (
+                        f"  {r[6]} | {r[1]} on {r[0].date().isoformat()} | "
+                        f"actual {float(r[2]):,.2f} vs expected {float(r[3]):,.2f} "
+                        f"(deviation {deviation:+,.2f}) | score {float(r[4]):.2f} | {r[5][:200]}\n"
+                    )
+                citations_list.append({"type": "database", "id": "anomaly_flag", "label": "Anomaly flags"})
+            else:
+                rag_context += "\n[Database check: no anomalies with status flagged or acknowledged exist.]\n"
+        except Exception:
+            pass
+
+    system_prompt = (
+        "You are MINOVA AI Assistant for CIL/CMPDI mining operations. "
+        "Answer questions about production, targets, causes, documents, and mine operations. "
+        "Always cite your sources. Be concise and factual. Support English and Hindi queries.\n"
+        "CRITICAL: Only state facts found in the provided context. Never invent anomalies, "
+        "equipment, incidents, or sources. If the context does not contain the answer, say "
+        "exactly that instead of guessing."
+    )
+    if rag_context:
+        system_prompt += f"\nRelevant context:\n{rag_context}\n\nUse the above context to answer. Cite sources by number."
+
+    import httpx
+    answer_content = ""
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{settings.ollama_url}/api/generate",
+                json={
+                    "model": settings.llm_model,
+                    "system": system_prompt,
+                    "prompt": body.content,
+                    "stream": False,
+                    "think": False,
+                    "options": {"temperature": settings.llm_temperature},
+                },
+            )
+            if resp.status_code == 200:
+                answer_content = resp.json().get("response", "I could not generate a response.")
+            else:
+                answer_content = "LLM service is unavailable. Please try again later."
+    except Exception:
+        answer_content = "LLM service is unavailable. Please try again later."
+
+    citations_dict = {"sources": citations_list} if citations_list else None
+
+    assistant_msg = ChatMessage(
+        session_id=session.id,
+        role="assistant",
+        content=answer_content,
+        route_type=route,
+        citations=citations_dict,
+    )
+    db.add(assistant_msg)
+    await db.flush()
+    return assistant_msg
 
 
 @router.get("/sessions/{session_id}/export")

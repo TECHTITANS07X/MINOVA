@@ -1,31 +1,12 @@
 import { useState } from 'react';
 import {
-  Box, Card, CardContent, Typography, Table, TableBody, TableCell, TableHead, TableRow,
+  Box, Card, Typography, Table, TableBody, TableCell, TableHead, TableRow,
   Chip, TextField, Grid, FormControl, InputLabel, Select, MenuItem, Alert, Button,
-  Tooltip, IconButton,
+  Tooltip, IconButton, CircularProgress,
 } from '@mui/material';
 import { VerifiedUser, Warning, ContentCopy } from '@mui/icons-material';
 import { api } from '../api/client';
-
-interface AuditEntry {
-  id: string;
-  ts: string;
-  actor: string;
-  action: string;
-  entity_type: string;
-  entity_id: string;
-  prev_hash: string;
-  event_hash: string;
-  details: string;
-}
-
-const MOCK_AUDIT: AuditEntry[] = [
-  { id: 'ae-1', ts: '2026-09-30T08:00:12Z', actor: 'shift_supervisor_1', action: 'shift_entry.submit', entity_type: 'ShiftEntry', entity_id: 'se-101', prev_hash: '0000000000', event_hash: 'a3f8c2d1e5', details: 'Submitted shift 1 entry for Bench A1' },
-  { id: 'ae-2', ts: '2026-09-30T08:15:33Z', actor: 'mine_manager_1', action: 'approval.approve', entity_type: 'ApprovalTask', entity_id: 'at-201', prev_hash: 'a3f8c2d1e5', event_hash: 'b7e4a9f6c3', details: 'Approved shift entry se-101' },
-  { id: 'ae-3', ts: '2026-09-30T09:00:01Z', actor: 'system', action: 'calc_run.execute', entity_type: 'CalcRun', entity_id: 'cr-301', prev_hash: 'b7e4a9f6c3', event_hash: 'c1d5b8e2a7', details: 'Daily rollup for 2026-09-30' },
-  { id: 'ae-4', ts: '2026-09-30T10:30:45Z', actor: 'data_entry_op_2', action: 'shift_entry.submit', entity_type: 'ShiftEntry', entity_id: 'se-102', prev_hash: 'c1d5b8e2a7', event_hash: 'd9c3f7a1b5', details: 'Submitted shift 2 entry for Bench B3' },
-  { id: 'ae-5', ts: '2026-09-30T11:00:00Z', actor: 'system', action: 'anomaly.flag', entity_type: 'AnomalyFlag', entity_id: 'af-401', prev_hash: 'd9c3f7a1b5', event_hash: 'e2a6d8c4f1', details: 'Flagged anomaly: OB removal 45% below expected' },
-];
+import { useAuditEvents } from '../api/hooks';
 
 const ACTION_COLORS: Record<string, 'success' | 'info' | 'warning' | 'error' | 'default'> = {
   'shift_entry.submit': 'info',
@@ -42,10 +23,9 @@ export default function AuditExplorer() {
   const [chainValid, setChainValid] = useState<boolean | null>(null);
   const [verifying, setVerifying] = useState(false);
 
-  const filtered = MOCK_AUDIT.filter((e) => {
-    if (actionFilter && e.action !== actionFilter) return false;
-    if (searchActor && !e.actor.toLowerCase().includes(searchActor.toLowerCase())) return false;
-    return true;
+  const { data: auditData, isLoading } = useAuditEvents({
+    action: actionFilter || undefined,
+    actor: searchActor || undefined,
   });
 
   const verifyChain = async () => {
@@ -92,51 +72,59 @@ export default function AuditExplorer() {
         </Grid>
       </Grid>
 
-      <Card>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Timestamp</TableCell>
-              <TableCell>Actor</TableCell>
-              <TableCell>Action</TableCell>
-              <TableCell>Entity</TableCell>
-              <TableCell>Details</TableCell>
-              <TableCell>Hash</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filtered.map((e) => (
-              <TableRow key={e.id} hover>
-                <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                  {new Date(e.ts).toLocaleString()}
-                </TableCell>
-                <TableCell>
-                  <Chip size="small" label={e.actor} variant="outlined" />
-                </TableCell>
-                <TableCell>
-                  <Chip size="small" label={e.action} color={ACTION_COLORS[e.action] || 'default'} />
-                </TableCell>
-                <TableCell>
-                  <Typography variant="caption">{e.entity_type}</Typography>
-                  <br />
-                  <Typography variant="caption" color="text.secondary">{e.entity_id}</Typography>
-                </TableCell>
-                <TableCell>{e.details}</TableCell>
-                <TableCell>
-                  <Box display="flex" alignItems="center" gap={0.5}>
-                    <Typography variant="caption" fontFamily="monospace">{e.event_hash}</Typography>
-                    <Tooltip title="Copy hash">
-                      <IconButton size="small" onClick={() => navigator.clipboard.writeText(e.event_hash)}>
-                        <ContentCopy sx={{ fontSize: 14 }} />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </TableCell>
+      {isLoading ? (
+        <Box display="flex" justifyContent="center" py={6}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <Card>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Timestamp</TableCell>
+                <TableCell>Actor</TableCell>
+                <TableCell>Action</TableCell>
+                <TableCell>Entity</TableCell>
+                <TableCell>Details</TableCell>
+                <TableCell>Hash</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+            </TableHead>
+            <TableBody>
+              {auditData?.items?.map((e: any) => (
+                <TableRow key={e.id} hover>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                    {new Date(e.ts).toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small" label={e.actor} variant="outlined" />
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small" label={e.action} color={ACTION_COLORS[e.action] || 'default'} />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption">{e.entity_type}</Typography>
+                    <br />
+                    <Typography variant="caption" color="text.secondary">{e.entity_id}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    {typeof e.details === 'object' ? JSON.stringify(e.details) : e.details}
+                  </TableCell>
+                  <TableCell>
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                      <Typography variant="caption" fontFamily="monospace">{e.event_hash}</Typography>
+                      <Tooltip title="Copy hash">
+                        <IconButton size="small" onClick={() => navigator.clipboard.writeText(e.event_hash)}>
+                          <ContentCopy sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
     </Box>
   );
 }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func
@@ -212,4 +212,49 @@ async def submit_entry(
 
     entry.status = EntryStatus.SUBMITTED
     entry.submitted_at = datetime.now(timezone.utc)
+
+    # Spawn the first approval task from the mine's active shift_entry chain.
+    # Without this the entry sat in SUBMITTED forever with nothing in the
+    # Approval Console inbox.
+    from app.domain.models import ApprovalChain, ApprovalLevel, ApprovalTask
+
+    chain_q = await db.execute(
+        select(ApprovalChain)
+        .where(
+            ApprovalChain.report_type == "shift_entry",
+            ApprovalChain.is_active.is_(True),
+            ApprovalChain.mine_id == entry.mine_id,
+        )
+        .limit(1)
+    )
+    chain = chain_q.scalar_one_or_none()
+    if chain is None:
+        chain_q = await db.execute(
+            select(ApprovalChain)
+            .where(
+                ApprovalChain.report_type == "shift_entry",
+                ApprovalChain.is_active.is_(True),
+                ApprovalChain.mine_id.is_(None),
+            )
+            .limit(1)
+        )
+        chain = chain_q.scalar_one_or_none()
+    if chain is not None:
+        level_q = await db.execute(
+            select(ApprovalLevel)
+            .where(ApprovalLevel.chain_id == chain.id)
+            .order_by(ApprovalLevel.sequence)
+            .limit(1)
+        )
+        first_level = level_q.scalar_one_or_none()
+        task = ApprovalTask(
+            entity_type="shift_entry",
+            entity_id=entry.id,
+            chain_id=chain.id,
+            current_level=first_level.sequence if first_level else 1,
+            sla_deadline=datetime.now(timezone.utc) + timedelta(hours=first_level.sla_hours if first_level else 24),
+        )
+        db.add(task)
+
+    await db.flush()
     return StatusResponse(status="submitted", message=f"Entry {entry_id} submitted for review")

@@ -163,6 +163,109 @@ class StagingReviewStatus(str, Enum):
     REJECTED = "rejected"
 
 
+# ── Parliamentary Question Engine ────────────────────────────────────────────
+
+class PQHouse(str, Enum):
+    LOK_SABHA = "lok_sabha"
+    RAJYA_SABHA = "rajya_sabha"
+
+
+class PQCategory(str, Enum):
+    PRODUCTION = "production"
+    SAFETY = "safety"
+    ENVIRONMENT = "environment"
+    FINANCE = "finance"
+    LAND_DISPLACEMENT = "land_displacement"
+    IMPORT_EXPORT = "import_export"
+    PROCUREMENT = "procurement"
+    EMPLOYEES = "employees"
+    OTHER = "other"
+
+
+class PQTriggerType(str, Enum):
+    SEASONAL = "seasonal"
+    INCIDENT = "incident"
+    POLICY = "policy"
+    BUDGET = "budget"
+
+
+class EvidencePackStatus(str, Enum):
+    DRAFT = "draft"
+    READY = "ready"
+    STALE = "stale"
+    SUBMITTED = "submitted"
+
+
+# ── Quality-Dispatch Correlation ─────────────────────────────────────────────
+
+class QualityRisk(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class QualityPredictionStatus(str, Enum):
+    PENDING = "pending"
+    LAB_CONFIRMED = "lab_confirmed"
+    SLIPPAGE_FLAGGED = "slippage_flagged"
+
+
+# ── Production Loss Ledger ───────────────────────────────────────────────────
+
+class LossSourceType(str, Enum):
+    CAUSE_RECORD = "cause_record"
+    ANOMALY = "anomaly"
+    MANUAL = "manual"
+
+
+class LossRecoveryStatus(str, Enum):
+    OPEN = "open"
+    PARTIAL = "partial"
+    RECOVERED = "recovered"
+    WAIVED = "waived"
+
+
+# ── Statutory Compliance Sentinel ────────────────────────────────────────────
+
+class ComplianceAuthority(str, Enum):
+    DGMS = "dgms"
+    MOEF = "moef"
+    STATE_PCB = "state_pcb"
+    COAL_CONTROLLER = "coal_controller"
+    MINISTRY_OF_COAL = "ministry_of_coal"
+
+
+class ComplianceFrequency(str, Enum):
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    HALF_YEARLY = "half_yearly"
+    ANNUAL = "annual"
+
+
+class FilingStatus(str, Enum):
+    NOT_STARTED = "not_started"
+    INCOMPLETE = "incomplete"
+    READY = "ready"
+    SUBMITTED = "submitted"
+    LATE = "late"
+
+
+# ── Geological Deviation Learning Loop ───────────────────────────────────────
+
+class DeviationSeverity(str, Enum):
+    WITHIN_TOLERANCE = "within_tolerance"
+    MODERATE = "moderate"
+    SEVERE = "severe"
+
+
+# ── Explosive-to-Output Correlation ──────────────────────────────────────────
+
+class ExplosiveFlag(str, Enum):
+    NORMAL = "normal"
+    OVER_CONSUMPTION = "over_consumption"
+    UNDER_CONSUMPTION = "under_consumption"
+
+
 class MetricName(str, Enum):
     PRODUCTION_TONNES = "production_tonnes"
     OVERBURDEN_M3 = "overburden_m3"
@@ -173,3 +276,60 @@ class MetricName(str, Enum):
     EQUIPMENT_AVAILABILITY = "equipment_availability"
     DISPATCH_TONNES = "dispatch_tonnes"
     WORKERS_PRESENT = "workers_present"
+    EXPLOSIVES_KG = "explosives_kg"
+    DECLARED_GCV = "declared_gcv"
+
+
+# ── Meeting Action Tracker ──────────────────────────────────────────────────
+
+class MeetingActionStatus(str, Enum):
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    OVERDUE = "overdue"
+
+class MeetingType(str, Enum):
+    SAFETY = "safety"
+    PRODUCTION = "production"
+    PLANNING = "planning"
+    REVIEW = "review"
+    EMERGENCY = "emergency"
+
+# ── Institutional Knowledge ─────────────────────────────────────────────────
+
+class KnowledgeCategory(str, Enum):
+    GEOLOGICAL = "geological"
+    OPERATIONAL = "operational"
+    SAFETY = "safety"
+    EQUIPMENT = "equipment"
+    ENVIRONMENTAL = "environmental"
+    REGULATORY = "regulatory"
+
+# ── Safety Incident Pattern ─────────────────────────────────────────────────
+
+class IncidentSeverity(str, Enum):
+    NEAR_MISS = "near_miss"
+    MINOR = "minor"
+    MODERATE = "moderate"
+    SERIOUS = "serious"
+    FATAL = "fatal"
+
+class IncidentCategory(str, Enum):
+    ROOF_FALL = "roof_fall"
+    SLOPE_FAILURE = "slope_failure"
+    EQUIPMENT = "equipment"
+    BLASTING = "blasting"
+    ELECTRICAL = "electrical"
+    TRANSPORT = "transport"
+    FIRE = "fire"
+    GAS = "gas"
+    WATER_INRUSH = "water_inrush"
+    OTHER = "other"
+
+# ── Photo Evidence Geo-Verification ─────────────────────────────────────────
+
+class PhotoVerificationStatus(str, Enum):
+    PENDING = "pending"
+    VERIFIED = "verified"
+    REJECTED = "rejected"
+    SUSPICIOUS = "suspicious"

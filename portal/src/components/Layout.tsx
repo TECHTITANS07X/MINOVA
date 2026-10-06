@@ -8,6 +8,8 @@ import {
   Menu as MenuIcon, Dashboard, Edit, CheckCircle, Description, AccountTree,
   CompareArrows, Folder, SmartToy, Insights, Warning, Cloud, Security,
   Map, AdminPanelSettings, Notifications, DarkMode, LightMode,
+  Campaign, Science, AccountBalanceWallet, SwapHoriz, Gavel, AutoAwesome,
+  Groups, MenuBook, HealthAndSafety, CameraAlt,
 } from '@mui/icons-material';
 import { useAuth } from '../auth/KeycloakProvider';
 
@@ -27,6 +29,16 @@ const NAV_ITEMS = [
   { label: 'Weather', path: '/weather', icon: <Cloud /> },
   { label: 'Audit Explorer', path: '/audit', icon: <Security /> },
   { label: 'Map View', path: '/map', icon: <Map /> },
+  { label: 'Parliamentary Engine', path: '/parliament', icon: <Campaign /> },
+  { label: 'Quality Correlation', path: '/quality', icon: <Science /> },
+  { label: 'Loss Ledger', path: '/loss-ledger', icon: <AccountBalanceWallet /> },
+  { label: 'Shift Handover', path: '/handover', icon: <SwapHoriz /> },
+  { label: 'Compliance', path: '/compliance', icon: <Gavel /> },
+  { label: 'Intelligence', path: '/intelligence', icon: <AutoAwesome /> },
+  { label: 'Meeting Tracker', path: '/meetings', icon: <Groups /> },
+  { label: 'Knowledge Base', path: '/knowledge', icon: <MenuBook /> },
+  { label: 'Safety Patterns', path: '/safety-patterns', icon: <HealthAndSafety /> },
+  { label: 'Photo Verification', path: '/photo-verify', icon: <CameraAlt /> },
   { label: 'Admin', path: '/admin', icon: <AdminPanelSettings /> },
 ];
 

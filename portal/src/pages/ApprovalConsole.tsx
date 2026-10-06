@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Box, Card, CardContent, Typography, Chip, Button, TextField, Dialog, DialogTitle,
+  Box, Card, Typography, Chip, Button, TextField, Dialog, DialogTitle,
   DialogContent, DialogActions, Table, TableBody, TableCell, TableHead, TableRow,
   IconButton, Tooltip, Tab, Tabs, Alert,
 } from '@mui/material';
@@ -16,7 +16,7 @@ const STATUS_COLORS: Record<string, 'default' | 'warning' | 'error' | 'success' 
 };
 
 export default function ApprovalConsole() {
-  const { data: tasks = [], isLoading } = useApprovalInbox();
+  const { data: tasks = [] } = useApprovalInbox();
   const approveAction = useApproveAction();
   const [selectedTask, setSelectedTask] = useState<ApprovalTask | null>(null);
   const [actionType, setActionType] = useState<'approve' | 'return' | 'escalate'>('approve');

@@ -3,8 +3,9 @@ from __future__ import annotations
 import hashlib
 import uuid
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from minio import Minio
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,10 +25,12 @@ from app.api.schemas import (
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import CurrentUser
-from app.domain.enums import DocumentCategory, IngestionStatus, StagingReviewStatus
+from app.domain.enums import DocumentCategory, DocumentType, IngestionStatus, StagingReviewStatus
 from app.domain.models import DocChunk, Document, DocumentPage, ExtractedTable, ExtractedValueStaging
 
 router = APIRouter()
+
+UPLOAD_DIR = Path(settings.storage_root)
 
 
 def _get_minio() -> Minio:
@@ -71,6 +74,51 @@ async def request_upload(
     )
 
     return PresignedUrlResponse(upload_url=url, object_key=object_key, document_id=doc_id)
+
+
+@router.post("/upload/file", response_model=DocumentOut)
+async def upload_file(
+    file: UploadFile = File(...),
+    doc_type: str = Form("other"),
+    category: str = Form("general"),
+    mine_id: str | None = Form(None),
+    user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+):
+    doc_id = uuid.uuid4()
+    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "bin"
+    object_key = f"uploads/{doc_id}.{ext}"
+
+    upload_path = UPLOAD_DIR / object_key
+    upload_path.parent.mkdir(parents=True, exist_ok=True)
+
+    content = await file.read()
+    checksum = hashlib.sha256(content).hexdigest()
+    upload_path.write_bytes(content)
+
+    try:
+        dtype = DocumentType(doc_type)
+    except ValueError:
+        dtype = DocumentType.OTHER
+    try:
+        dcat = DocumentCategory(category)
+    except ValueError:
+        dcat = DocumentCategory.GENERAL
+
+    doc = Document(
+        id=doc_id,
+        filename=file.filename or f"upload.{ext}",
+        doc_type=dtype,
+        category=dcat,
+        mine_id=uuid.UUID(mine_id) if mine_id else None,
+        object_key=object_key,
+        size_bytes=len(content),
+        checksum_sha256=checksum,
+        ingestion_status=IngestionStatus.UPLOADED,
+    )
+    db.add(doc)
+    await db.flush()
+    return DocumentOut.model_validate(doc)
 
 
 @router.get("", response_model=Page)

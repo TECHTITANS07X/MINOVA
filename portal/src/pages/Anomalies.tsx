@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
-  Box, Card, CardContent, Typography, Table, TableBody, TableCell, TableHead, TableRow,
+  Box, Card, Typography, Table, TableBody, TableCell, TableHead, TableRow,
   Chip, IconButton, Tooltip, Button, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, LinearProgress, Grid,
 } from '@mui/material';
-import { CheckCircle, Close, Link as LinkIcon, Visibility } from '@mui/icons-material';
-import { useAnomalies } from '../api/hooks';
+import { CheckCircle, Close, Visibility, AutoAwesome } from '@mui/icons-material';
+import { useAnomalies, useAnomalyNarrative } from '../api/hooks';
 import { api } from '../api/client';
 import type { AnomalyFlag } from '../types';
 
@@ -114,6 +114,7 @@ export default function Anomalies() {
         <DialogContent>
           {selected && (
             <Box>
+              <NarrativeSection anomalyId={selected.id} />
               <Typography variant="subtitle2" gutterBottom>Explanation</Typography>
               <Typography variant="body2" mb={2}>{selected.explanation || 'No explanation generated.'}</Typography>
 
@@ -144,6 +145,43 @@ export default function Anomalies() {
           </Button>
         </DialogActions>
       </Dialog>
+    </Box>
+  );
+}
+
+function NarrativeSection({ anomalyId }: { anomalyId: string }) {
+  const { data: narrative, isLoading } = useAnomalyNarrative(anomalyId);
+
+  if (isLoading) return <LinearProgress sx={{ mb: 2 }} />;
+  if (!narrative) return null;
+
+  return (
+    <Box mb={3} p={2} sx={{ bgcolor: 'info.50', borderRadius: 1, border: 1, borderColor: 'info.main' }}>
+      <Box display="flex" alignItems="center" gap={1} mb={1}>
+        <AutoAwesome fontSize="small" color="info" />
+        <Typography variant="subtitle2">Smart Narrative — probable explanation with evidence</Typography>
+      </Box>
+      <Typography variant="body2" mb={1.5}>{narrative.summary}</Typography>
+      {narrative.probable_causes?.length > 0 && (
+        <>
+          <Typography variant="caption" fontWeight={700}>Probable causes:</Typography>
+          {narrative.probable_causes.map((c: any, i: number) => (
+            <Typography key={i} variant="caption" display="block" ml={1}>
+              • [{c.confidence} confidence] {c.description}
+            </Typography>
+          ))}
+        </>
+      )}
+      {narrative.evidence?.length > 0 && (
+        <>
+          <Typography variant="caption" fontWeight={700} display="block" mt={1}>Evidence trail:</Typography>
+          {narrative.evidence.map((e: any, i: number) => (
+            <Typography key={i} variant="caption" display="block" ml={1} color="text.secondary">
+              • {e.detail} <Typography component="span" variant="caption" fontWeight={600}>({e.source_type})</Typography>
+            </Typography>
+          ))}
+        </>
+      )}
     </Box>
   );
 }

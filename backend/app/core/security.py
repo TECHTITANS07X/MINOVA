@@ -4,8 +4,11 @@ import httpx
 from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError, jwt
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.domain.models import AppUser
 
 _jwks_cache: dict | None = None
 
@@ -33,6 +36,8 @@ def _extract_roles(payload: dict) -> list[str]:
     roles: list[str] = []
     realm_access = payload.get("realm_access", {})
     roles.extend(realm_access.get("roles", []))
+    # Custom realm import maps roles to a flat `realm_roles` claim.
+    roles.extend(payload.get("realm_roles") or [])
     resource_access = payload.get("resource_access", {})
     for client_roles in resource_access.values():
         roles.extend(client_roles.get("roles", []))
@@ -78,6 +83,44 @@ async def get_current_user(request: Request) -> TokenUser:
 
 
 CurrentUser = Annotated[TokenUser, Depends(get_current_user)]
+
+
+async def resolve_app_user(db: AsyncSession, user: TokenUser) -> AppUser:
+    """Return the app_user row for a token identity, provisioning one on first use.
+
+    Keycloak-issued `sub` is preferred as the stable key; some realm imports strip
+    standard claims, so we fall back to preferred_username and keep the mapping
+    in sync whichever identifier arrives first.
+    """
+    sub = user.sub or ""
+    username = user.name or (f"kc-{sub[:8]}" if sub else "anonymous")
+
+    if sub:
+        row = (
+            await db.execute(select(AppUser).where(AppUser.keycloak_id == sub))
+        ).scalar_one_or_none()
+        if row:
+            return row
+
+    row = (
+        await db.execute(select(AppUser).where(AppUser.username == username))
+    ).scalar_one_or_none()
+    if row:
+        if sub and row.keycloak_id != sub:
+            row.keycloak_id = sub
+            await db.flush()
+        return row
+
+    row = AppUser(
+        keycloak_id=sub or f"kc:{username}",
+        username=username,
+        full_name=username,
+        email=user.email or f"{username}@minova.demo",
+        department=user.department or None,
+    )
+    db.add(row)
+    await db.flush()
+    return row
 
 
 def require_role(*allowed_roles: str):

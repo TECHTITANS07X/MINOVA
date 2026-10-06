@@ -12,7 +12,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ROOT         = "D:\games and stuff\Opus - build"
+# Root folder of the local MINOVA workspace (repo lives one level below it)
+$ROOT         = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $TOOLS        = "$ROOT\tools"
 $DATA         = "$ROOT\data"
 $LOGS         = "$ROOT\logs"

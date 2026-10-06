@@ -45,3 +45,27 @@ tools/
 # OS
 Thumbs.db
 .DS_Store
+
+# Generated sample report artifacts
+samples/output/
+
+# Test and tool caches
+.pytest_cache/
+.ruff_cache/
+venv/
+
+# Android/Gradle build artifacts
+.gradle/
+mobile/android/local.properties
+mobile/android/app/.gradle/
+
+# Local assistant/agent working artifacts — never commit
+.freebuff/
+.claude/
+.claude*
+.agents/
+.codebuff*
+.cursor/
+.windsurf/
+CLAUDE.md
+AGENTS.md

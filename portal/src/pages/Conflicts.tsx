@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import {
-  Box, Card, CardContent, Typography, Grid, Chip, Button, TextField, Dialog, DialogTitle,
+  Box, Card, Typography, Grid, Chip, Button, TextField, Dialog, DialogTitle,
   DialogContent, DialogActions, Select, MenuItem, FormControl, InputLabel, Alert, Divider,
-  Table, TableBody, TableCell, TableHead, TableRow, IconButton,
+  Table, TableBody, TableCell, TableHead, TableRow,
 } from '@mui/material';
 import { CompareArrows, CheckCircle } from '@mui/icons-material';
 import { useConflicts, useResolveConflict } from '../api/hooks';

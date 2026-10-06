@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.schemas import ApprovalActionRequest, ApprovalTaskOut, Page, StatusResponse
+from app.api.schemas import ApprovalActionRequest, ApprovalCommentRequest, ApprovalTaskOut, Page, StatusResponse
 from app.core.database import get_db
 from app.core.security import CurrentUser
 from app.domain.enums import ApprovalAction, AuditAction, EntryStatus
@@ -172,6 +172,52 @@ async def act_on_task(
         raise HTTPException(400, "No escalation target configured for this level")
 
     raise HTTPException(400, f"Unsupported action: {body.action}")
+
+
+async def _act_on_task_impl(
+    task_id: uuid.UUID,
+    action: str,
+    user: CurrentUser,
+    db: AsyncSession,
+    comment: str = "",
+) -> StatusResponse:
+    """Shared implementation for /act and the convenience per-action routes."""
+    return await act_on_task(
+        task_id,
+        ApprovalActionRequest(action=action, comment=comment),
+        user,
+        db,
+    )
+
+
+@router.post("/{task_id}/approve", response_model=StatusResponse)
+async def approve_task(
+    task_id: uuid.UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    body: ApprovalCommentRequest | None = None,
+):
+    return await _act_on_task_impl(task_id, "approve", user, db, body.comment if body else "")
+
+
+@router.post("/{task_id}/return", response_model=StatusResponse)
+async def return_task(
+    task_id: uuid.UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    body: ApprovalCommentRequest | None = None,
+):
+    return await _act_on_task_impl(task_id, "return", user, db, body.comment if body else "")
+
+
+@router.post("/{task_id}/escalate", response_model=StatusResponse)
+async def escalate_task(
+    task_id: uuid.UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    body: ApprovalCommentRequest | None = None,
+):
+    return await _act_on_task_impl(task_id, "escalate", user, db, body.comment if body else "")
 
 
 @router.get("/history/{entity_type}/{entity_id}", response_model=list[ApprovalTaskOut])

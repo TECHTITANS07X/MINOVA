@@ -75,7 +75,11 @@ async def readyz():
 
 from sqlalchemy import text
 
-from app.api import entries, reports, approval, conflicts, lineage, documents, chat, anomalies, weather, admin, sync_api
+from app.api import (
+    entries, reports, approval, conflicts, lineage, documents, chat, anomalies, weather,
+    admin, sync_api, pq, quality, loss_ledger, handover, compliance, explosives, geology,
+    meetings, knowledge, safety, photos,
+)
 
 
 app.include_router(entries.router, prefix=f"{settings.api_prefix}/entries", tags=["Shift Entries"])
@@ -89,3 +93,14 @@ app.include_router(anomalies.router, prefix=f"{settings.api_prefix}/anomalies", 
 app.include_router(weather.router, prefix=f"{settings.api_prefix}/weather", tags=["Weather"])
 app.include_router(admin.router, prefix=f"{settings.api_prefix}/admin", tags=["Admin"])
 app.include_router(sync_api.router, prefix=f"{settings.api_prefix}/sync", tags=["Sync"])
+app.include_router(pq.router, prefix=f"{settings.api_prefix}/pq", tags=["Parliamentary Engine"])
+app.include_router(quality.router, prefix=f"{settings.api_prefix}/quality", tags=["Quality Correlation"])
+app.include_router(loss_ledger.router, prefix=f"{settings.api_prefix}/loss-ledger", tags=["Loss Ledger"])
+app.include_router(handover.router, prefix=f"{settings.api_prefix}/handover", tags=["Shift Handover"])
+app.include_router(compliance.router, prefix=f"{settings.api_prefix}/compliance", tags=["Compliance"])
+app.include_router(explosives.router, prefix=f"{settings.api_prefix}/explosives", tags=["Explosives"])
+app.include_router(geology.router, prefix=f"{settings.api_prefix}/geology", tags=["Geology"])
+app.include_router(meetings.router, prefix=f"{settings.api_prefix}/meetings", tags=["Meetings"])
+app.include_router(knowledge.router, prefix=f"{settings.api_prefix}/knowledge", tags=["Knowledge"])
+app.include_router(safety.router, prefix=f"{settings.api_prefix}/safety", tags=["Safety"])
+app.include_router(photos.router, prefix=f"{settings.api_prefix}/photos", tags=["Photos"])

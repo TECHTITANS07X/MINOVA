@@ -36,3 +36,37 @@ Documented deviations from the original build specification.
 **Reason**: Docker Desktop not installed. WSL2 Ubuntu available but stopped.
 **Mitigation**: All services run natively: portable PostgreSQL, Keycloak standalone, Temporal CLI dev-server, Ollama system install.
 **Impact**: No container isolation. Services managed via PowerShell scripts. Functionally equivalent for development.
+
+## 8. MUI v9 → v7 (portal dependency drift repair)
+**Reason**: package.json specified `@mui/material` without a major pin; node_modules had drifted to v9.4.0, where
+system props (Box `mt`, Typography `fontWeight`), `Grid size`, and `primaryTypographyProps` were removed —
+209 TypeScript errors across pre-existing pages (the "0 errors" in Phase 12 pre-dates the drift).
+The codebase is written against the MUI v6/v7 API family (new Grid with `size`, system props).
+**Mitigation**: Pinned `@mui/material@7.3.11`, `@mui/icons-material@7.3.11`, `@mui/x-data-grid@^8`, `@mui/x-date-pickers@^8`
+(v7 = first major where `Grid` is the new grid with `size` and system props still typecheck on Box//Typography/Grid).
+Also removed ~40 genuinely unused imports flagged by `noUnusedLocals` and fixed one recharts Tooltip formatter type.
+**Impact**: package-lock updated; runtime behavior unchanged; portal now typechecks clean (0 errors) and builds.
+
+## 9. Parliamentary/quality/compliance seeds are synthetic
+**Reason**: No public API provides CIL's internal shift/lab/compliance data. Real PQ texts are publicly available
+(Lok Sabha/Rajya Sabha) but were not bulk-ingested for the prototype.
+**Mitigation**: seed_innovations.py generates realistic synthetic history (8 patterns, 3 years of GCV samples,
+40 PQs) with deterministic RNG (seed 2026) so demos reproduce exactly.
+**Impact**: Demo numbers are not real CIL figures. Pattern/likelihood/evidence machinery is fully wired to live data.
+
+## 10. Alembic migration applied with env override
+**Reason**: alembic.ini's `sqlalchemy.url` (5432) and the sync URL default dialect (psycopg 3, not installed) differ
+from the running stack (portable PG on 5433 + psycopg2-binary).
+**Mitigation**: Migrations run with `DATABASE_SYNC_URL=postgresql+psycopg2://...@localhost:5433/minova`.
+Revision `fe133e64440f` adds the 10 innovation tables; DB is at head (49 tables).
+**Impact**: None for runtime (env.py reads settings.database_sync_url); noted for future migration runs.
+
+## 11. Chat grounding is context-injection, not retrieval over full corpus
+**Reason**: The `/chat/message` quick-chat endpoint classifies queries heuristically and injects
+targeted DB context (last-7-day production sums, active anomaly rows) plus keyword-search doc chunks
+only for CONTEXTUAL/HYBRID routes. The full pgvector/embedding RAG pipeline exists but the simple
+portal chat path does not always route through it.
+**Mitigation**: System prompt hard-forbids invented facts; anomaly and production questions are
+grounded with live DB rows and cited. Verified in browser.
+**Impact**: Exotic questions outside the seeded routes may get a conservative "no data" answer rather
+than a document-synthesis answer. The RAG machinery is present for deeper integration.

@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.security import CurrentUser
 from app.domain.models import (
     CalcRun,
+    DocumentPage,
     EntryValue,
     LineageEdge,
     Report,
@@ -44,6 +45,7 @@ async def _build_tree(
         rv = rv_res.scalar_one_or_none()
         if rv:
             node.value = rv.value
+            node.unit = rv.unit
             node.label = f"{rv.metric} = {rv.value} {rv.unit}"
             edges_res = await db.execute(
                 select(LineageEdge).where(LineageEdge.report_value_id == source_id)
@@ -66,8 +68,33 @@ async def _build_tree(
                     source_id=v.id,
                     relationship_type="data",
                     value=v.value,
+                    unit=v.unit,
                     label=f"{v.metric.value} = {v.value} {v.unit}",
                 ))
+
+    elif source_type == "document":
+        doc_res = await db.execute(select(Document).where(Document.id == source_id))
+        doc = doc_res.scalar_one_or_none()
+        if doc:
+            node.label = f"Source document: {doc.filename}"
+
+    elif source_type == "document_page":
+        dp_res = await db.execute(
+            select(DocumentPage)
+            .where(DocumentPage.id == source_id)
+            .options(selectinload(DocumentPage.document))
+        )
+        dp = dp_res.scalar_one_or_none()
+        if dp:
+            snippet = " ".join((dp.text_content or "").split())
+            doc_name = dp.document.filename if dp.document else "Document"
+            node.label = f"{doc_name} — page {dp.page_number}"
+            node.children.append(LineageNode(
+                source_type="snippet",
+                source_id=dp.id,
+                relationship_type="text",
+                label=snippet[:160] or "(no extractable text)",
+            ))
 
     elif source_type == "report":
         report_res = await db.execute(
@@ -112,11 +139,13 @@ async def replay_number(
     entry_ids = [e.source_id for e in rv.lineage_edges if e.source_type == "shift_entry"]
 
     if not entry_ids:
+        tree = await _build_tree(db, "report_value", report_value_id)
         return ReplayResult(
             report_value_id=report_value_id,
             stored_value=rv.value,
             recomputed_value=rv.value,
             match=True,
+            lineage_tree=tree,
         )
 
     entries_res = await db.execute(
@@ -161,3 +190,13 @@ async def replay_number(
         match=rv.value == recomputed,
         lineage_tree=tree,
     )
+
+
+@router.post("/{report_value_id}/verify", response_model=ReplayResult)
+async def verify_number(
+    report_value_id: uuid.UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    """Alias of /replay — the portal's Replay page calls /verify."""
+    return await replay_number(report_value_id, user, db)

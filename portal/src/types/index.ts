@@ -96,12 +96,13 @@ export interface ConflictFlag {
 }
 
 export interface LineageNode {
-  id: string;
-  type: string;
+  source_type: string;
+  source_id: string;
+  relationship_type: string;
   label: string;
   value: number | null;
-  unit: string;
-  timestamp: string;
+  unit?: string;
+  timestamp?: string;
   children: LineageNode[];
 }
 

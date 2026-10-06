@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Box, Card, CardContent, Typography, TextField, IconButton, Paper, Chip, Divider,
-  Drawer, List, ListItemButton, ListItemText, Button, CircularProgress,
+  Drawer, Button, CircularProgress,
 } from '@mui/material';
-import { Send, AttachFile, Download, OpenInNew, Close } from '@mui/icons-material';
+import { Send, OpenInNew, Close } from '@mui/icons-material';
 import { api } from '../api/client';
 import type { ChatMessage, Citation } from '../types';
 

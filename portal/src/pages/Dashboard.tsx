@@ -1,17 +1,12 @@
-import { Box, Card, CardContent, Grid, Typography, Chip, Skeleton } from '@mui/material';
+import { useState } from 'react';
+import {
+  Box, Card, CardContent, Grid, Typography, CircularProgress,
+  FormControl, InputLabel, Select, MenuItem,
+} from '@mui/material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingUp, TrendingDown, Warning, CheckCircle } from '@mui/icons-material';
 import { useAuth } from '../auth/KeycloakProvider';
-
-const MOCK_PRODUCTION = [
-  { day: 'Mon', target: 8000, actual: 7500 },
-  { day: 'Tue', target: 8000, actual: 8200 },
-  { day: 'Wed', target: 8000, actual: 6800 },
-  { day: 'Thu', target: 8000, actual: 7900 },
-  { day: 'Fri', target: 8000, actual: 8100 },
-  { day: 'Sat', target: 6000, actual: 5500 },
-  { day: 'Sun', target: 4000, actual: 3200 },
-];
+import { useDashboard, useMines } from '../api/hooks';
 
 function StatCard({ title, value, unit, trend, color }: {
   title: string; value: string; unit: string; trend?: 'up' | 'down'; color: string;
@@ -37,30 +32,61 @@ function StatCard({ title, value, unit, trend, color }: {
   );
 }
 
+function formatTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
+  const [selectedMine, setSelectedMine] = useState<string>('');
+  const { data: mines = [] } = useMines();
+  const { data: dashboard, isLoading } = useDashboard(selectedMine || undefined);
+
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  const mineName = mines.find(m => m.id === selectedMine)?.name || 'All Mines';
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>
-        Welcome, {user?.name || 'User'}
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+        <Typography variant="h5">
+          Welcome, {user?.name || 'User'}
+        </Typography>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel>Mine</InputLabel>
+          <Select value={selectedMine} label="Mine" onChange={(e) => setSelectedMine(e.target.value)}>
+            <MenuItem value="">All Mines</MenuItem>
+            {mines.map((m) => <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>)}
+          </Select>
+        </FormControl>
+      </Box>
       <Typography variant="body2" color="text.secondary" mb={3}>
-        Production overview for DEMO Mine Alpha
+        Production overview for {mineName}
       </Typography>
 
       <Grid container spacing={3} mb={3}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <StatCard title="Today's Production" value="7,900" unit="tonnes" trend="up" color="primary.main" />
+          <StatCard title="Today's Production" value={dashboard?.today_production?.toLocaleString() ?? '—'} unit="tonnes" trend="up" color="primary.main" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <StatCard title="Monthly Target" value="87.2" unit="%" trend="up" color="success.main" />
+          <StatCard title="Target Achievement" value={dashboard?.target_achievement_pct?.toFixed(1) ?? '—'} unit="%" trend="up" color="success.main" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <StatCard title="Pending Approvals" value="12" unit="entries" color="warning.main" />
+          <StatCard title="Pending Approvals" value={dashboard?.pending_approvals?.toLocaleString() ?? '—'} unit="entries" color="warning.main" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <StatCard title="Active Anomalies" value="3" unit="flags" trend="down" color="error.main" />
+          <StatCard title="Active Anomalies" value={dashboard?.active_anomalies?.toLocaleString() ?? '—'} unit="flags" trend="down" color="error.main" />
         </Grid>
       </Grid>
 
@@ -70,7 +96,7 @@ export default function Dashboard() {
             <CardContent>
               <Typography variant="h6" gutterBottom>Weekly Production vs Target</Typography>
               <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={MOCK_PRODUCTION}>
+                <BarChart data={dashboard?.weekly_production ?? []}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="day" />
                   <YAxis />
@@ -87,20 +113,20 @@ export default function Dashboard() {
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>Recent Activity</Typography>
-              {[
-                { text: 'Shift 1 entry approved', icon: <CheckCircle color="success" fontSize="small" />, time: '10m ago' },
-                { text: 'Anomaly flagged: low OB', icon: <Warning color="warning" fontSize="small" />, time: '1h ago' },
-                { text: 'Daily report generated', icon: <CheckCircle color="info" fontSize="small" />, time: '2h ago' },
-                { text: 'Conflict detected: 8000 vs 7850', icon: <Warning color="error" fontSize="small" />, time: '3h ago' },
-              ].map((item, i) => (
-                <Box key={i} display="flex" alignItems="center" gap={1} py={1} borderBottom={1} borderColor="divider">
-                  {item.icon}
+              {(dashboard?.recent_activity ?? []).map((item: any) => (
+                <Box key={item.id} display="flex" alignItems="center" gap={1} py={1} borderBottom={1} borderColor="divider">
+                  {item.action === 'approve' ? <CheckCircle color="success" fontSize="small" /> : <Warning color="warning" fontSize="small" />}
                   <Box flex={1}>
-                    <Typography variant="body2">{item.text}</Typography>
-                    <Typography variant="caption" color="text.secondary">{item.time}</Typography>
+                    <Typography variant="body2">
+                      {item.action.charAt(0).toUpperCase() + item.action.slice(1)}: {item.entity_type}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">{formatTime(item.time)}</Typography>
                   </Box>
                 </Box>
               ))}
+              {(dashboard?.recent_activity ?? []).length === 0 && (
+                <Typography variant="body2" color="text.secondary">No recent activity</Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>

@@ -117,7 +117,7 @@ class ShiftEntryOut(BaseModel):
 
 class ReportGenerateRequest(BaseModel):
     mine_id: uuid.UUID
-    template_id: uuid.UUID
+    template_id: uuid.UUID | None = None
     period: ReportPeriod
     period_start: datetime
     period_end: datetime
@@ -157,6 +157,12 @@ class ReportDescriptionEdit(BaseModel):
 
 class ApprovalActionRequest(BaseModel):
     action: ApprovalAction
+    comment: str = ""
+
+
+class ApprovalCommentRequest(BaseModel):
+    """Body for the per-action convenience routes (/approve, /return, /escalate)
+    where the action is already encoded in the URL path."""
     comment: str = ""
 
 
@@ -205,11 +211,33 @@ class ConflictOut(BaseModel):
 
 # ── Lineage ──────────────────────────────────────────────────────────────────
 
+class ExtractedFigure(BaseModel):
+    metric: str
+    value: Decimal
+    unit: str
+    source_page: int
+    source_snippet: str
+
+
+class DocumentReportResponse(BaseModel):
+    document_id: uuid.UUID
+    document_filename: str
+    pages_parsed: int
+    extracted: list[ExtractedFigure]
+    report_id: uuid.UUID
+    report_status: str
+    period_start: datetime
+    period_end: datetime
+    report_values: list[ReportValueOut]
+    primary_value_id: uuid.UUID | None = None
+
+
 class LineageNode(BaseModel):
     source_type: str
     source_id: uuid.UUID
     relationship_type: str
     value: Decimal | None = None
+    unit: str = ""
     label: str = ""
     children: list[LineageNode] = []
 

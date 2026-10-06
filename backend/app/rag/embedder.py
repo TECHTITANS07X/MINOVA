@@ -9,10 +9,13 @@ from functools import lru_cache
 
 import structlog
 
+from app.core.config import settings
+
 logger = structlog.get_logger()
 
-os.environ.setdefault("HF_HOME", "D:/games and stuff/Opus - build/models/huggingface")
-os.environ.setdefault("HF_HUB_CACHE", "D:/games and stuff/Opus - build/models/huggingface/hub")
+# Model cache location is configurable; defaults to a repo-local directory.
+os.environ.setdefault("HF_HOME", settings.hf_home)
+os.environ.setdefault("HF_HUB_CACHE", os.path.join(settings.hf_home, "hub"))
 
 _model = None
 

@@ -1,12 +1,11 @@
 import { useState, useCallback } from 'react';
 import {
-  Box, Card, CardContent, Typography, TextField, Button, Grid, Chip, Table, TableBody,
+  Box, Card, Typography, TextField, Button, Grid, Chip, Table, TableBody,
   TableCell, TableHead, TableRow, IconButton, Tooltip, LinearProgress, Paper,
 } from '@mui/material';
-import { Upload, Search, Visibility, Delete, CloudUpload } from '@mui/icons-material';
+import { Search, Visibility, CloudUpload } from '@mui/icons-material';
 import { useDocuments } from '../api/hooks';
 import { api } from '../api/client';
-import type { Document } from '../types';
 
 const STATUS_COLORS: Record<string, 'default' | 'warning' | 'info' | 'success' | 'error'> = {
   uploaded: 'default',
@@ -38,7 +37,7 @@ export default function Documents() {
       const formData = new FormData();
       formData.append('file', file);
       try {
-        await api.post('/documents/upload', formData, {
+        await api.post('/documents/upload/file', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       } catch {

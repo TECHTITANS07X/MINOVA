@@ -17,8 +17,7 @@ from app.core.config import settings
 
 logger = structlog.get_logger()
 
-STORAGE_ROOT = Path(settings.MINIO_ENDPOINT if settings.MINIO_ENDPOINT.startswith("/") or settings.MINIO_ENDPOINT.startswith("D:")
-                    else "D:/games and stuff/Opus - build/data/object-storage")
+STORAGE_ROOT = Path(settings.storage_root)
 
 
 class StorageService:

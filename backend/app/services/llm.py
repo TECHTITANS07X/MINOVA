@@ -15,6 +15,10 @@ logger = structlog.get_logger()
 OLLAMA_BASE = "http://localhost:11434"
 MODEL = "qwen3:8b"
 
+# qwen3 is a reasoning model: without this it burns tokens (and often the whole
+# request timeout) on hidden chain-of-thought before answering.
+NO_THINK = {"think": False}
+
 SYSTEM_GROUNDING = (
     "You are MINOVA AI, a mining operations assistant. "
     "You describe and summarize data. You NEVER compute, estimate, or invent numbers. "
@@ -47,6 +51,7 @@ async def generate(prompt: str, system: str = "", temperature: float = 0.3, max_
                 "prompt": prompt,
                 "system": sys_prompt,
                 "stream": False,
+                **NO_THINK,
                 "options": {"temperature": temperature, "num_predict": max_tokens},
             },
         )
@@ -60,7 +65,7 @@ async def generate_stream(prompt: str, system: str = "") -> AsyncGenerator[str, 
         async with client.stream(
             "POST",
             f"{OLLAMA_BASE}/api/generate",
-            json={"model": MODEL, "prompt": prompt, "system": sys_prompt, "stream": True},
+            json=            {"model": MODEL, "prompt": prompt, "system": sys_prompt, "stream": True, **NO_THINK},
         ) as resp:
             async for line in resp.aiter_lines():
                 if line:
