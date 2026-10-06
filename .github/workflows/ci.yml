@@ -29,10 +29,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      # The deterministic calculation tests are pure-Decimal unit tests with
-      # no database or service dependencies, so only pytest is required.
+      # The deterministic calculation tests are pure unit tests with no
+      # database or service dependencies; they import pydantic models, so
+      # install that alongside pytest.
       - name: Install test dependencies
-        run: pip install pytest==8.4.*
+        run: pip install "pytest==8.4.*" "pydantic>=2.11,<3"
 
       - name: Run tests
         run: python -m pytest tests -q
