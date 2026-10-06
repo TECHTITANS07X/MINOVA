@@ -1,0 +1,62 @@
+name: CI
+
+# Runs the backend test suite and the portal typecheck + production build
+# on every push and pull request targeting main.
+#
+# Grounded in GitHub Actions docs:
+# - Workflow syntax:        https://docs.github.com/actions/reference/workflow-syntax-for-github-actions
+# - Python guide:           https://docs.github.com/actions/guides/building-and-testing-python
+# - Node.js guide (npm ci): https://docs.github.com/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    name: Backend tests (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # The deterministic calculation tests are pure-Decimal unit tests with
+      # no database or service dependencies, so only pytest is required.
+      - name: Install test dependencies
+        run: pip install pytest==8.4.*
+
+      - name: Run tests
+        run: python -m pytest tests -q
+
+  portal-build:
+    name: Portal typecheck & build (Node)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: portal
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: portal/package-lock.json
+
+      # npm ci installs exactly what package-lock.json pins
+      - name: Install dependencies
+        run: npm ci
+
+      # package.json "build" = "tsc -b && vite build"
+      - name: Build portal
+        run: npm run build
